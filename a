@@ -1,0 +1,126 @@
+use std::default;
+
+use bevy::{math::DVec2, prelude::*};
+use bevy_xpbd_2d::prelude::*;
+
+use crate::planet::Planet;
+
+const GRAVITATIONAL_CONSTANT: f64 = 6.;
+
+pub struct PlayerPlugin;
+
+impl Plugin for PlayerPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_systems(PreStartup, setup_player)
+            .add_systems(FixedUpdate, apply_gravity);
+    }
+}
+
+#[derive(Bundle)]
+struct Physics {
+    rbody: RigidBody,
+    pos: Position,
+    rot: Rotation,
+    l_vel: LinearVelocity,
+    a_vel: AngularVelocity,
+    ext_f: ExternalForce,
+    ext_t: ExternalTorque,
+    ext_i: ExternalImpulse,
+    ext_ai: ExternalAngularImpulse,
+    f: Friction,
+    r: Restitution,
+    m: Mass,
+    i: Inertia,
+    com: CenterOfMass,
+}
+
+impl Default for Physics {
+    fn default() -> Self {
+        Self {
+            rbody: RigidBody::Dynamic,
+            pos: Position::default(),
+            rot: Rotation::default(),
+            l_vel: LinearVelocity::default(),
+            a_vel: AngularVelocity::default(),
+            ext_f: ExternalForce::default(),
+            ext_t: ExternalTorque::default(),
+            ext_i: ExternalImpulse::default(),
+            ext_ai: ExternalAngularImpulse::default(),
+            f: Friction::default(),
+            r: Restitution::default(),
+            m: Mass::default(),
+            i: Inertia::default(),
+            com: CenterOfMass::default(),
+        }
+    }
+}
+
+#[derive(Bundle)]
+struct PlayerBundle {
+    player: Player,
+    mesh: ColorMesh2dBundle,
+    collider: Collider,
+    locked_axes: LockedAxes,
+    gravity: GravityScale,
+    physics: Physics,
+}
+
+#[derive(Component)]
+pub struct Player;
+
+fn setup_player(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    commands.spawn(PlayerBundle {
+        player: Player,
+        mesh: ColorMesh2dBundle {
+            mesh: meshes.add(shape::Circle::new(15.).into()).into(),
+            material: materials.add(ColorMaterial::from(Color::WHITE)),
+            ..default()
+        },
+
+        collider: Collider::ball(15.),
+        locked_axes: LockedAxes::new        rigid_body: RigidBody::Dynamic,
+        collider: Collider::ball(15.),
+        position: Position(DVec2::new(1200., 0.)),
+        locked_axes: LockedAxes::new().lock_rotation(),
+        external_force: ExternalForce::new(DVec2::ZERO).with_persistence(false),
+        mass: Mass(100.),
+        gravity: GravityScale(0.),
+        linear_velocity: LinearVelocity(DVec2::new(0., 320.)),(),
+    });
+}
+
+fn apply_gravity(
+    time_step: Res<FixedTime>,
+    mut player_query: Query<(&Player, &Position, &Mass, &mut ExternalForce)>,
+    planet_query: Query<(&Planet, &Position, &Mass)>,
+) {
+    let (_, player_position, player_mass, mut external_force) =
+        player_query.get_single_mut().unwrap();
+    let (_, planet_position, planet_mass) = planet_query.get_single().unwrap();
+
+    let grav_direction = planet_position.0 - player_position.0;
+
+    let force = time_step.period.as_secs_f64()
+        * GRAVITATIONAL_CONSTANT
+        * ((player_mass.0 * planet_mass.0) / grav_direction.length_squared());
+
+    let direction_norm = grav_direction.normalize();
+    let force_vec = direction_norm * force;
+
+    external_force.apply_force(force_vec);
+}
+
+
+
+rigid_body: RigidBody::Dynamic,
+collider: Collider::ball(15.),
+position: Position(DVec2::new(1200., 0.)),
+locked_axes: LockedAxes::new().lock_rotation(),
+external_force: ExternalForce::new(DVec2::ZERO).with_persistence(false),
+mass: Mass(100.),
+gravity: GravityScale(0.),
+linear_velocity: LinearVelocity(DVec2::new(0., 320.)),

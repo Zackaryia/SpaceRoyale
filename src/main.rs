@@ -1,24 +1,25 @@
+
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::transform::TransformSystem;
 use bevy_xpbd_2d::prelude::*;
 use planet::PlanetPlugin;
 use player::{Player, PlayerPlugin};
-use bevy_hanabi::prelude::*;
+// use bevy_hanabi::prelude::*;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy::prelude::*;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 
 mod planet;
 mod player;
-mod thrust;
+// mod thrust;
 
 fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PhysicsPlugins::default()))
         // .add_plugins(WorldInspectorPlugin::new())
 
-        .add_plugins(HanabiPlugin)
+        // .add_plugins(HanabiPlugin)
         .add_plugins((PlanetPlugin, PlayerPlugin))
         .add_plugins((
             LogDiagnosticsPlugin::default(),

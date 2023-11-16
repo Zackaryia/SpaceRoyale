@@ -3,9 +3,9 @@ use std::default;
 use bevy::{math::DVec2, prelude::*, render::mesh::VertexAttributeValues};
 use bevy_xpbd_2d::{prelude::*, math::PI};
 
-use crate::{planet::Planet, thrust};
+use crate::planet::Planet;
 
-const GRAVITATIONAL_CONSTANT: f64 = 7e-11 * 1e7;
+const GRAVITATIONAL_CONSTANT: f64 = 7e-11 * 1e10;
 
 pub struct PlayerPlugin;
 
@@ -76,7 +76,7 @@ struct DynamicRuntimeAccel;
 
 
 
-use bevy_hanabi::prelude::*;
+// use bevy_hanabi::prelude::*;
 
 
 
@@ -84,7 +84,7 @@ fn setup_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    mut effects: ResMut<Assets<EffectAsset>>,
+    // mut effects: ResMut<Assets<EffectAsset>>,
 ) {
     let player_mesh: Mesh = shape::RegularPolygon::new(30., 3).into();
 
@@ -100,7 +100,7 @@ fn setup_player(
     }
     assert!(player_mesh_positions.len() == 3);
 
-    let spawner = Spawner::rate(100_f32.into());
+    // let spawner = Spawner::rate(100_f32.into());
 
     commands.spawn(PlayerBundle {
         player: Player,
@@ -122,15 +122,15 @@ fn setup_player(
 
             ..Default::default()
         },
-    }).with_children(|parent| {
-        parent.spawn(
-            ParticleEffectBundle {
-                effect: ParticleEffect::new(thrust::setup_thrust_particles(effects)).with_spawner(spawner),
-                transform: Transform::from_translation(Vec3::Y).with_rotation(Quat::from_rotation_arc_2d(Vec2::X, Vec2::NEG_Y)),
-                ..Default::default()
-            },
-        );
-    });
+    }); //.with_children(|parent| {
+    //     parent.spawn(
+    //         ParticleEffectBundle {
+    //             effect: ParticleEffect::new(thrust::setup_thrust_particles(effects)).with_spawner(spawner),
+    //             transform: Transform::from_translation(Vec3::Y).with_rotation(Quat::from_rotation_arc_2d(Vec2::X, Vec2::NEG_Y)),
+    //             ..Default::default()
+    //         },
+    //     );
+    // });
 }
 
 fn apply_gravity(

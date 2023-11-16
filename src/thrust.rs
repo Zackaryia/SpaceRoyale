@@ -38,13 +38,13 @@ pub fn setup_thrust_particles(mut effects: ResMut<Assets<EffectAsset>>) -> Handl
     // let accel1 = writer1.lit(Vec3::Y * -2.).expr();
     // let update_accel1 = AccelModifier::new(accel1);
 
-    let emitter_angle_sin = writer1.lit(Attribute::AXIS_Z).cast(ScalarType::Float).sin();
-    let emitter_angle_cos = writer1.lit(Attribute::AXIS_Z).cast(ScalarType::Float).cos();
+    // let emitter_angle_sin = writer1.lit(Attribute::AXIS_Z).cast(ScalarType::Float).sin();
+    // let emitter_angle_cos = writer1.lit(Attribute::AXIS_Z).cast(ScalarType::Float).cos();
     
-    let emitter_position = Vec2::from([emitter_angle_sin, emitter_angle_cos]);
+    // let emitter_position = Vec2::from([emitter_angle_sin, emitter_angle_cos]);
 
     let init_pos1 = SetPositionCircleModifier {
-        center: writer1.lit(emitter_position).expr(),
+        center: writer1.lit(Vec3::new(0., 100., 0.)).expr(),
         axis: writer1.lit(Vec3::Z).expr(),
         radius: writer1.lit(4.).expr(),
         dimension: ShapeDimension::Volume,

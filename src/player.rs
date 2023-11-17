@@ -1,4 +1,4 @@
-use std::default;
+use std::{default, ops::Add};
 
 use bevy::{math::DVec2, prelude::*, render::mesh::VertexAttributeValues};
 use bevy_xpbd_2d::{prelude::*, math::PI};
@@ -203,9 +203,9 @@ fn apply_player_movement(
         particle_effect_query.get_mut(child_id).unwrap().spawn_rate_per_second = 0.0.into();
     }
 
-    lvel.0;
-    particle_effect_query.get_mut(child_id).unwrap().initial_speed = 0.0.into();
-    particle_effect_query.get_mut(child_id).unwrap().initial_rotation = 0.0.into();
+    let particle_velocity: DVec2 = lvel.0.add(DVec2::new(rot.cos(), rot.sin()) * 1000);
+    particle_effect_query.get_mut(child_id).unwrap().initial_speed = particle_velocity.length().abs().into();
+    particle_effect_query.get_mut(child_id).unwrap().initial_rotation = particle_velocity.angle_between(DVec2::new(1., 0.));
     
 
 

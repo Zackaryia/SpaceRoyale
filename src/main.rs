@@ -56,7 +56,7 @@ fn setup(mut commands: Commands) {
         camera: Camera2dBundle {
             transform: Transform::from_xyz(0., 0., 1.),
             projection: OrthographicProjection {
-                scale: 6.,
+                scale: 6.5,
                 ..default()
             },
             ..default()

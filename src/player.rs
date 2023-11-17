@@ -2,11 +2,9 @@ use std::default;
 
 use bevy::{math::DVec2, prelude::*, render::mesh::VertexAttributeValues};
 use bevy_xpbd_2d::{prelude::*, math::PI};
+use bevy_particle_systems::*;
 
 use crate::planet::Planet;
-
-const GRAVITATIONAL_CONSTANT: f64 = 7e-11 * 1e10;
-
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
@@ -75,18 +73,13 @@ pub struct Player;
 struct DynamicRuntimeAccel;
 
 
-
-// use bevy_hanabi::prelude::*;
-
-
-
 fn setup_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    // mut effects: ResMut<Assets<EffectAsset>>,
+    asset_server: Res<AssetServer>
 ) {
-    let player_mesh: Mesh = shape::RegularPolygon::new(30., 3).into();
+    let player_mesh: Mesh = shape::RegularPolygon::new(50., 3).into();
 
     let mut player_mesh_positions = Vec::new();
     if let VertexAttributeValues::Float32x3(data) =
@@ -98,9 +91,8 @@ fn setup_player(
             .map(|x| DVec2::from([x[0] as f64, x[1] as f64]))
             .collect();
     }
-    assert!(player_mesh_positions.len() == 3);
 
-    // let spawner = Spawner::rate(100_f32.into());
+    assert!(player_mesh_positions.len() == 3);
 
     commands.spawn(PlayerBundle {
         player: Player,
@@ -116,21 +108,59 @@ fn setup_player(
 
         physics: Physics {
             pos: Position(DVec2::new(1200., 0.)),
-            l_vel: LinearVelocity(DVec2::new(0., 620.)),
+            l_vel: LinearVelocity(DVec2::new(0., 1000.)),
             m: Mass(1.),
             ext_f: ExternalForce::new(DVec2::ZERO).with_persistence(false),
 
             ..Default::default()
         },
-    }); //.with_children(|parent| {
-    //     parent.spawn(
-    //         ParticleEffectBundle {
-    //             effect: ParticleEffect::new(thrust::setup_thrust_particles(effects)).with_spawner(spawner),
-    //             transform: Transform::from_translation(Vec3::Y).with_rotation(Quat::from_rotation_arc_2d(Vec2::X, Vec2::NEG_Y)),
-    //             ..Default::default()
-    //         },
-    //     );
-    // });
+    }).with_children(|parent| {
+        parent.spawn(ParticleSystemBundle {
+            particle_system: ParticleSystem {
+                max_particles: 20_000,
+                texture: ParticleTexture::Sprite(asset_server.load("px.png")),
+                spawn_rate_per_second: 600.0.into(),
+                initial_speed: JitteredValue::jittered(1000.0, -200.00..200.00),
+                lifetime: JitteredValue::jittered(1.0, -0.5..0.5),
+                color: ColorOverTime::Gradient(Curve::new(vec![
+                    CurvePoint::new(Color::rgba(1., 1., 1., 1.), 0.0),
+                    CurvePoint::new(Color::rgba(1., 1., 0., 1.), 0.1),
+                    CurvePoint::new(Color::rgba(1., 0., 0., 1.), 0.4),
+                    CurvePoint::new(Color::rgba(0., 0., 1., 0.), 1.0),
+                ])),
+
+                looping: true,
+                system_duration_seconds: 10.0,
+                
+                rescale_texture: None,
+                emitter_shape: EmitterShape::CircleSegment(
+                    CircleSegment { 
+                        opening_angle: 0.6 * std::f32::consts::PI, 
+                        direction_angle: 3. * std::f32::consts::PI / 2., 
+                        radius: JitteredValue::jittered(20., -15.0..15.0) 
+                    }
+                ),
+                velocity_modifiers: vec![],
+                scale: ValueOverTime::Curve(Curve::new(vec![
+                    CurvePoint::new(0.1 * 50.,  0.0),
+                    CurvePoint::new(0.5 * 50.,  0.5),
+                    CurvePoint::new(0.08 * 50., 0.7),
+                    CurvePoint::new(0.0  * 50.,  1.0)
+                ])),
+                initial_rotation: 0.0.into(),
+                rotation_speed: 0.0.into(),
+                rotate_to_movement_direction: false,
+                max_distance: None,
+                z_value_override: Some(JitteredValue { value: 0.1, jitter_range: None }),
+                bursts: Vec::default(),
+                space: ParticleSpace::World,
+                use_scaled_time: true,
+                despawn_on_finish: false,
+                despawn_particles_with_system: false,
+            },
+            ..ParticleSystemBundle::default()
+        }).insert(Playing);
+    });
 }
 
 fn apply_gravity(
@@ -138,34 +168,46 @@ fn apply_gravity(
     mut player_query: Query<(&Player, &Position, &Mass, &mut ExternalForce)>,
     planet_query: Query<(&Planet, &Position, &Mass)>,
 ) {
-    let (_, player_position, player_mass, mut external_force) =
-        player_query.get_single_mut().unwrap();
-    let (_, planet_position, planet_mass) = planet_query.get_single().unwrap();
+    for (_, player_position, player_mass, mut external_force) in player_query.iter_mut() {
+        for (_, planet_position, planet_mass) in planet_query.iter() {
+            let grav_direction = planet_position.0 - player_position.0;
 
-    let grav_direction = planet_position.0 - player_position.0;
+            let force = time_step.timestep().as_secs_f64()
+                * 3000.
+                * ((player_mass.0 * planet_mass.0) / grav_direction.length_squared());
 
-    let force = time_step.timestep().as_secs_f64()
-        * GRAVITATIONAL_CONSTANT
-        * ((player_mass.0 * planet_mass.0) / grav_direction.length_squared());
+            let direction_norm = grav_direction.normalize();
+            let force_vec = direction_norm * force;
 
-    let direction_norm = grav_direction.normalize();
-    let force_vec = direction_norm * force;
-
-    external_force.apply_force(force_vec);
+            external_force.apply_force(force_vec);
+        }
+    }
 }
 
 fn apply_player_movement(
 	time_step: Res<Time<Fixed>>,
 	keys: Res<Input<KeyCode>>,
-    mut player_query: Query<((&mut ExternalForce, &mut AngularVelocity, &Rotation), With<Player>)>,
+    mut player_query: Query<((&mut ExternalForce, &mut AngularVelocity, &LinearVelocity, &Rotation, &Children), With<Player>)>,
+    mut particle_effect_query: Query<&mut ParticleSystem>
 ) {
-	let ((mut ext_forces, mut avel, rot), _) = player_query.get_single_mut().unwrap();
+	let ((mut ext_forces, mut avel, lvel, rot, children), _) = player_query.get_single_mut().unwrap();
+
+    let child_id = *children.get(0).unwrap(); // Thruster ID BC only 1 child that is the truster
 
 	if keys.pressed(KeyCode::W) {
 		dbg!(&ext_forces);
-		ext_forces.apply_force(rot.rotate(DVec2::Y * 10000000. * time_step.timestep().as_secs_f64())); 
+		ext_forces.apply_force(rot.rotate(DVec2::Y * 2e8 * time_step.timestep().as_secs_f64())); 
+        
+        particle_effect_query.get_mut(child_id).unwrap().spawn_rate_per_second = 600.0.into();
+	} else {
+        particle_effect_query.get_mut(child_id).unwrap().spawn_rate_per_second = 0.0.into();
+    }
 
-	}
+    lvel.0;
+    particle_effect_query.get_mut(child_id).unwrap().initial_speed = 0.0.into();
+    particle_effect_query.get_mut(child_id).unwrap().initial_rotation = 0.0.into();
+    
+
 
 	let mut avel_change = 0.;
 

@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use bevy_xpbd_2d::prelude::*;
 
-const PLANET_RADIUS: f64 = 1000.;
-
 pub struct PlanetPlugin;
 
 impl Plugin for PlanetPlugin {
@@ -30,34 +28,57 @@ fn setup_planet(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    let r = 1000.;
+    let d = 10000.;
     commands.spawn(PlanetBundle {
         planet: Planet,
         mesh: ColorMesh2dBundle {
             mesh: meshes
-                .add(shape::Circle::new(PLANET_RADIUS as f32).into())
+                .add(shape::Circle::new(r).into())
                 .into(),
             material: materials.add(ColorMaterial::from(Color::WHITE)),
             ..default()
         },
         rigid_body: RigidBody::Static,
-        collider: Collider::ball(PLANET_RADIUS),
+        collider: Collider::ball(r.into()),
         position: Position(Vec2::new(0., 0.).into()),
-        mass: Mass(1e5),
+        mass: Mass((r*d).into()),
         friction: Friction::new(0.9)
     });
 
-    // commands.spawn(PlanetBundle {
-    //     planet: Planet,
-    //     mesh: ColorMesh2dBundle {
-    //         mesh: meshes
-    //             .add(shape::Circle::new(PLANET_RADIUS as f32).into())
-    //             .into(),
-    //         material: materials.add(ColorMaterial::from(Color::WHITE)),
-    //         ..default()
-    //     },
-    //     rigid_body: RigidBody::Static,
-    //     collider: Collider::ball(PLANET_RADIUS),
-    //     position: Position(Vec2::new(0., 0.).into()),
-    //     mass: Mass(100000.),
-    // });
+    let r = 100.;
+    let d = 100000.;
+    commands.spawn(PlanetBundle {
+        planet: Planet,
+        mesh: ColorMesh2dBundle {
+            mesh: meshes
+                .add(shape::Circle::new(r).into())
+                .into(),
+            material: materials.add(ColorMaterial::from(Color::BLACK)),
+            ..default()
+        },
+        rigid_body: RigidBody::Static,
+        collider: Collider::ball(r.into()),
+        position: Position(Vec2::new(1000., 3000.).into()),
+        mass: Mass((r*d).into()),
+        friction: Friction::new(0.9)
+    });
+
+    let r = 1000.;
+    let d = 1000.;
+    commands.spawn(PlanetBundle {
+        planet: Planet,
+        mesh: ColorMesh2dBundle {
+            mesh: meshes
+                .add(shape::Circle::new(r).into())
+                .into(),
+            material: materials.add(ColorMaterial::from(Color::RED)),
+            ..default()
+        },
+        rigid_body: RigidBody::Static,
+        collider: Collider::ball(r.into()),
+        position: Position(Vec2::new(-1000., 4000.).into()),
+        mass: Mass((r*d).into()),
+        friction: Friction::new(0.9)
+    });
 }

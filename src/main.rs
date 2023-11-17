@@ -9,6 +9,7 @@ use player::{Player, PlayerPlugin};
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy::prelude::*;
 // use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_particle_systems::ParticleSystemPlugin;
 
 mod planet;
 mod player;
@@ -18,7 +19,14 @@ fn main() {
     App::new()
         .add_plugins((DefaultPlugins, PhysicsPlugins::default()))
         // .add_plugins(WorldInspectorPlugin::new())
-
+        .add_plugins(ParticleSystemPlugin::default()) // <-- Add the plugin
+        .add_systems(Startup, setup)
+        .add_systems(
+            PostUpdate,
+            update_camera
+                .after(PhysicsSet::Sync)
+                .before(TransformSystem::TransformPropagate),
+        )
         // .add_plugins(HanabiPlugin)
         .add_plugins((PlanetPlugin, PlayerPlugin))
         .add_plugins((
@@ -26,18 +34,12 @@ fn main() {
             FrameTimeDiagnosticsPlugin::default(),
         ))
         .insert_resource(Time::<Fixed>::from_seconds(1. / 60.))
-        .add_systems(Startup, setup)
-        // .add_systems(FixedUpdate, )
-        .add_systems(
-            PostUpdate,
-            update_camera
-                .after(PhysicsSet::Sync)
-                .before(TransformSystem::TransformPropagate),
-        )
-        // .add_plugins(WorldInspectorPlugin::default())
-        // .add_systems(Update, (update_accel))
         .run();
 }
+
+use bevy_particle_systems::*;
+
+
 
 #[derive(Bundle)]
 struct PlayerCameraBundle {
@@ -52,9 +54,9 @@ fn setup(mut commands: Commands) {
     commands.spawn(PlayerCameraBundle {
         player_camera: PlayerCamera,
         camera: Camera2dBundle {
-            transform: Transform::from_xyz(1200., 0., 1.),
+            transform: Transform::from_xyz(0., 0., 1.),
             projection: OrthographicProjection {
-                scale: 7.,
+                scale: 6.,
                 ..default()
             },
             ..default()

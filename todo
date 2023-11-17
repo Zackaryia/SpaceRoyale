@@ -1,10 +1,17 @@
-ADD A REAL MAP
+ADD A REAL MAP // Maybe proc gen some maps and pick some that I like 
 ADD GUNS / SHOOT
 ADD PARTICAL EFFECTS
 ADD PLANET AND ROCKET AND BACKGROUND TEXTURES
 ADD NETWORKING
 ADD SOUND
 ADD GRENADE (GET VIA POWERUP MAYBE OR TIME BASED, LIKE 1 EVERY 10 SECONDS)
+https://docs.rs/bevy_framepace/latest/bevy_framepace/
+
+
+
+
+
+
 
 https://opengameart.org/content/space-boss-battle-theme
 https://opengameart.org/content/colossal-boss-battle-theme

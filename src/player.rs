@@ -1,16 +1,16 @@
-use std::{default, ops::Add};
-
 use bevy::{math::DVec2, prelude::*, render::mesh::VertexAttributeValues};
 use bevy_particle_systems::*;
-use bevy_xpbd_2d::{math::PI, prelude::*};
+use bevy_xpbd_2d::prelude::*;
+use serde::{Deserialize, Serialize};
 
-use crate::planet::Planet;
+use crate::map::AffectedByGravity;
+
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(Startup, setup_player)
-			.add_systems(FixedUpdate, (apply_gravity, apply_player_movement));
+			.add_systems(FixedUpdate, apply_player_movement);
 	}
 }
 
@@ -55,6 +55,7 @@ impl Default for Physics {
 
 #[derive(Bundle)]
 struct PlayerBundle {
+	gravity_affected: AffectedByGravity,
 	player: Player,
 	mesh: ColorMesh2dBundle,
 	collider: Collider,
@@ -63,14 +64,8 @@ struct PlayerBundle {
 	physics: Physics,
 }
 
-#[derive(Component)]
+#[derive(Component, Serialize, Deserialize)]
 pub struct Player;
-
-/// A simple marker component to identify the effect using a dynamic
-/// property-based acceleration that the `update_accel()` system will control at
-/// runtime.
-#[derive(Component)]
-struct DynamicRuntimeAccel;
 
 fn setup_player(
 	mut commands: Commands,
@@ -95,6 +90,7 @@ fn setup_player(
 
 	commands
 		.spawn(PlayerBundle {
+			gravity_affected: AffectedByGravity,
 			player: Player,
 			mesh: ColorMesh2dBundle {
 				mesh: meshes.add(player_mesh).into(),
@@ -169,27 +165,6 @@ fn setup_player(
 				})
 				.insert(Playing);
 		});
-}
-
-fn apply_gravity(
-	time_step: Res<Time<Fixed>>,
-	mut player_query: Query<(&Player, &Position, &Mass, &mut ExternalForce)>,
-	planet_query: Query<(&Planet, &Position, &Mass)>,
-) {
-	for (_, player_position, player_mass, mut external_force) in player_query.iter_mut() {
-		for (_, planet_position, planet_mass) in planet_query.iter() {
-			let grav_direction = planet_position.0 - player_position.0;
-
-			let force = time_step.timestep().as_secs_f64()
-				* 4000.0 * ((player_mass.0 * planet_mass.0)
-				/ (grav_direction).length_squared());
-
-			let direction_norm = grav_direction.normalize();
-			let force_vec = direction_norm * force;
-
-			external_force.apply_force(force_vec);
-		}
-	}
 }
 
 fn apply_player_movement(

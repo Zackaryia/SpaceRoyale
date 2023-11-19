@@ -1,20 +1,16 @@
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::transform::TransformSystem;
-use bevy_xpbd_2d::prelude::*;
-use planet::PlanetPlugin;
-use player::{Player, PlayerPlugin};
-// use bevy_hanabi::prelude::*;
-// use bevy_inspector_egui::quick::WorldInspectorPlugin;
-use bevy::prelude::*;
-// use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_particle_systems::ParticleSystemPlugin;
+use bevy_xpbd_2d::prelude::*;
 
-mod generate_map;
 mod helper;
 
-mod planet;
+mod map;
 mod player;
+
+use map::MapPlugin;
+use player::{Player, PlayerPlugin};
 
 // mod thrust;
 
@@ -31,7 +27,7 @@ fn main() {
 				.before(TransformSystem::TransformPropagate),
 		)
 		// .add_plugins(HanabiPlugin)
-		.add_plugins((PlanetPlugin, PlayerPlugin))
+		.add_plugins((MapPlugin, PlayerPlugin))
 		.add_plugins((
 			LogDiagnosticsPlugin::default(),
 			FrameTimeDiagnosticsPlugin::default(),
@@ -39,8 +35,6 @@ fn main() {
 		.insert_resource(Time::<Fixed>::from_seconds(1. / 60.))
 		.run();
 }
-
-use bevy_particle_systems::*;
 
 #[derive(Bundle)]
 struct PlayerCameraBundle {
@@ -77,4 +71,3 @@ fn update_camera(
 		.translation
 		.lerp(player_position.as_vec3(), time.delta_seconds() * 10.);
 }
-

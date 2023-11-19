@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use rand::{rngs::ThreadRng, Rng};
 
 pub fn count_objects<T: std::hash::Hash + Eq>(objects: Vec<T>) -> HashMap<T, usize> {
-    let mut count_map: HashMap<T, usize> = HashMap::new();
+	let mut count_map: HashMap<T, usize> = HashMap::new();
 
-    for obj in objects {
-        // Use entry API to insert if not present, or update if present
-        let counter = count_map.entry(obj).or_insert(0);
-        *counter += 1;
-    }
+	for obj in objects {
+		// Use entry API to insert if not present, or update if present
+		let counter = count_map.entry(obj).or_insert(0);
+		*counter += 1;
+	}
 
-    count_map
+	count_map
 }
 
 pub fn modified_box_muller_transform(u: f64) -> f64 {
@@ -25,19 +25,18 @@ pub fn normal_dist(rng: &mut ThreadRng, avg: f64, std: f64) -> f64 {
 }
 
 pub fn weighted_random<T>(rng: &mut ThreadRng, data_frequencies: Vec<(T, f64)>) -> T {
-    let total_frequency: f64 = data_frequencies.iter().map(|x| x.1).sum();
-    
-    let rand_value = rng.gen_range(0.0..total_frequency);
-    
-    let mut current_total = 0.0;
-    for data in data_frequencies {
-        current_total += data.1;
+	let total_frequency: f64 = data_frequencies.iter().map(|x| x.1).sum();
 
-        if current_total > rand_value {
-            return data.0;
-        }
-    }
+	let rand_value = rng.gen_range(0.0..total_frequency);
 
-    unreachable!();
+	let mut current_total = 0.0;
+	for data in data_frequencies {
+		current_total += data.1;
+
+		if current_total > rand_value {
+			return data.0;
+		}
+	}
+
+	unreachable!();
 }
-

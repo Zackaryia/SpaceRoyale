@@ -1,10 +1,5 @@
 # NOTE: For maximum performance, build using a nightly compiler
 # If you are using rust stable, remove the "-Zshare-generics=y" below.
-
-[target.x86_64-unknown-linux-gnu]
-linker = "clang"
-rustflags = ["-C", "link-arg=-fuse-ld=/usr/bin/mold"]
-
 [target.wasm32-unknown-unknown]
 runner = "wasm-server-runner"
 

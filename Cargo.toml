@@ -12,6 +12,7 @@ bevy_particle_systems = "0.11.0"
 # bevy-inspector-egui = "0.21.0"
 # bevy_hanabi = "0.8.0"
 bevy_xpbd_2d = { version = "0.3", default-features = false, features = [ "2d", "f64" ] }
+rand = "0.8.5"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]

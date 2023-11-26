@@ -54,8 +54,8 @@ fn spawn_map(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-	let world_size = 4e5;
-	let planet_density: f64 = 3.5 * 1e-4;
+	let world_size = 3e4;
+	let planet_density: f64 = 3.65 * 1e-4;
 	let gened_world = generate_world(
 		(world_size * -0.5, world_size * -0.5),
 		world_size,
@@ -90,7 +90,7 @@ fn spawn_map(
 /////////////////////////
 
 use bevy::render::color::Color;
-use rand::{thread_rng, Rng};
+use rand::{thread_rng, Rng, SeedableRng};
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -164,7 +164,7 @@ pub struct PlanetGen {
 	pub planet_type: PlanetTypesGen,
 }
 
-const MINIMUM_PLANET_DISTANCE: f64 = 670.0;
+const MINIMUM_PLANET_DISTANCE: f64 = 640.0;
 
 fn check_planet_valid(size: f64, planet_list: &Vec<PlanetGen>, canidate: &PlanetGen) -> bool {
 	if canidate.x - canidate.radius > size || canidate.x - canidate.radius < 0.0 {
@@ -189,9 +189,12 @@ fn check_planet_valid(size: f64, planet_list: &Vec<PlanetGen>, canidate: &Planet
 	true
 }
 
+
+use rand_chacha;
+
 pub fn generate_world(offset: (f64, f64), size: f64, planet_count: i32) -> Vec<PlanetGen> {
 	assert!(size > 0.0);
-	let mut rng = thread_rng();
+	let mut rng = rand_chacha::ChaChaRng::seed_from_u64(u64::from_be_bytes([b'Z', b'a', b'c', b'k', b'C', b'o', b'o', b'l']));
 
 	let mut planets: Vec<PlanetGen> = vec![];
 	let mut planet_frequencies: Vec<(PlanetTypesGen, f64)> = vec![];
@@ -210,6 +213,7 @@ pub fn generate_world(offset: (f64, f64), size: f64, planet_count: i32) -> Vec<P
 				&mut rng,
 				canidate_planet_volume,
 				canidate_planet_volume * 0.2,
+				1.75,
 			) / PI)
 				.sqrt();
 
@@ -217,6 +221,7 @@ pub fn generate_world(offset: (f64, f64), size: f64, planet_count: i32) -> Vec<P
 				&mut rng,
 				canidate_planet_type.get_density(),
 				canidate_planet_type.get_density() * 0.2,
+				1.75,
 			);
 
 			let canidate_planet = PlanetGen {

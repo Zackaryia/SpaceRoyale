@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
-use rand::{rngs::ThreadRng, Rng};
+use rand::Rng;
+use rand_chacha::ChaChaRng;
 
 pub fn count_objects<T: std::hash::Hash + Eq>(objects: Vec<T>) -> HashMap<T, usize> {
 	let mut count_map: HashMap<T, usize> = HashMap::new();
@@ -20,11 +21,23 @@ pub fn modified_box_muller_transform(u: f64) -> f64 {
 	(-2.0 * u.ln()).sqrt() * (u * 2.0 * std::f64::consts::PI).cos()
 }
 
-pub fn normal_dist(rng: &mut ThreadRng, avg: f64, std: f64) -> f64 {
-	modified_box_muller_transform(rng.gen_range(0.0..1.0)) * std + avg
+pub fn normal_dist(rng: &mut ChaChaRng, avg: f64, std: f64, bound: f64) -> f64 {
+	assert!(bound > 0.0);
+	let mut z_score = modified_box_muller_transform(rng.gen_range(0.0..1.0));
+
+	// Bounding the max Z_Score range because having problems with extreme outliers
+	if z_score > bound {
+		z_score = bound;
+	}
+
+	if z_score < -bound {
+		z_score = -bound;
+	}
+
+	z_score * std + avg
 }
 
-pub fn weighted_random<T>(rng: &mut ThreadRng, data_frequencies: Vec<(T, f64)>) -> T {
+pub fn weighted_random<T>(rng: &mut ChaChaRng, data_frequencies: Vec<(T, f64)>) -> T {
 	let total_frequency: f64 = data_frequencies.iter().map(|x| x.1).sum();
 
 	let rand_value = rng.gen_range(0.0..total_frequency);

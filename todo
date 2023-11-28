@@ -28,3 +28,6 @@ https://opengameart.org/content/space-ship-building-bits-volume-1
 Server: On startup it makes the world and then nothing.
 
 Client: COnnects, gets current world, sends and recieves world.
+
+
+Moving to simplenet, rebuilding replication and will add perdiciton and stuff. Need to add bevy_replicon's add_client_event and add_server_event.

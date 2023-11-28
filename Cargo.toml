@@ -10,14 +10,17 @@ anyhow = "1.0.75"
 # TODO: Remove dynamic_linking feature on release
 bevy = { version = "0.12" }
 bevy_particle_systems = "0.11"
-bevy_replicon = { git = "https://github.com/Zackaryia/bevy_replicon", branch = "test" }
+bevy_simplenet = { path = "../bevy_simplenet" }
+# bevy_replicon = { git = "https://github.com/Zackaryia/bevy_replicon", branch = "test" }
 # bevy-inspector-egui = "0.21.0"
 # bevy_hanabi = "0.8.0"
-bevy_xpbd_2d = { version = "0.3", default-features = false, features = [ "2d", "f64" ] }
+bevy_xpbd_2d = { git = "https://github.com/Jondolf/bevy_xpbd", default-features = false, features = [ "2d", "f64", "debug-plugin", "serialize", "enhanced-determinism" ] }
 clap = { version = "4.4", features = ["derive"] }
+enfync = "0.1.0"
 rand = "0.8"
 rand_chacha = "0.3.1"
 serde = { version = "1", features = ["derive"] }
+url = "2.5.0"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
@@ -25,4 +28,9 @@ opt-level = 1
 
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
-opt-level = 3
+opt-level = 2
+
+[features]
+default = ["server", "client"]
+server = []
+client = []

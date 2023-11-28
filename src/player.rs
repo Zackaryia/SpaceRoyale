@@ -2,32 +2,32 @@ use core::fmt;
 
 use bevy::{math::{DVec2, DVec3}, prelude::*, render::mesh::VertexAttributeValues};
 use bevy_particle_systems::*;
-use bevy_replicon::renet::ClientId;
+use bevy_simplenet::{Client, Server};
+// use bevy_replicon::renet::ClientId;
 use bevy_xpbd_2d::prelude::*;
 use serde::{Deserialize, Serialize, Serializer, Deserializer};
 
-use bevy_replicon::prelude::*;
+// use bevy_replicon::prelude::*;
 
-use crate::map::AffectedByGravity;
+use crate::{map::AffectedByGravity, network::{ClientMsgEvent, NetworkChannel}, ClientMsg};
 
 pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
 	fn build(&self, app: &mut App) {
 		app
-			.replicate::<Player>()
-			.add_client_event::<Inputs>(EventType::Ordered)
+			// .replicate::<Player>()
+			.add_event::<Inputs>()
 			.add_systems(Update, 
-				(apply_player_movement.run_if(has_authority()), // Runs only on the server or a single player.
-				input_system)
+				(apply_player_movement.run_if(resource_exists::<Server<NetworkChannel>>()), // Runs only on the server or a single player.
+				input_system.run_if(resource_exists::<Client<NetworkChannel>>()))
 			)
 			// .add_systems(Startup, spawn_player)
-			.add_systems(PreUpdate, player_init_system.after(ClientSet::Receive));
+			.add_systems(PreUpdate, player_init_system);
 	}
 }
 
-#[derive(Bundle)]
-struct Physics {
+#[derive(Bundle)]struct Physics {
 	rbody: RigidBody,
 	pos: Position,
 	rot: Rotation,
@@ -68,7 +68,7 @@ impl Default for Physics {
 #[derive(Bundle)]
 struct PlayerBundle {
 	player: Player,
-	replication: Replication,
+	// replication: Replication,
 
 	gravity_affected: AffectedByGravity,
 	mesh: ColorMesh2dBundle,
@@ -79,44 +79,44 @@ struct PlayerBundle {
 }
 
 #[derive(Component, Clone, Copy)]
-pub struct Player(pub ClientId);
+pub struct Player;
 
-impl Serialize for Player {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        serializer.serialize_u64(self.0.raw())
-    }
-}
+// impl Serialize for Player {
+//     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+//     where
+//         S: Serializer,
+//     {
+//         serializer.serialize_u64(self.0.raw())
+//     }
+// }
 
-use serde::de::{self, Visitor};
+// use serde::de::{self, Visitor};
 
-struct PlayerVisitor;
+// struct PlayerVisitor;
 
-impl<'de> Visitor<'de> for PlayerVisitor {
-    type Value = Player;
+// impl<'de> Visitor<'de> for PlayerVisitor {
+//     type Value = Player;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("Bruh help")
-    }
+//     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+//         formatter.write_str("Bruh help")
+//     }
 
-    fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        Ok(Player(ClientId::from_raw(value)))
-    }
-}
+//     fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
+//     where
+//         E: de::Error,
+//     {
+//         Ok(Player)
+//     }
+// }
 
-impl<'de> Deserialize<'de> for Player {
-    fn deserialize<D>(deserializer: D) -> Result<Player, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_u64(PlayerVisitor)
-    }
-}
+// impl<'de> Deserialize<'de> for Player {
+//     fn deserialize<D>(deserializer: D) -> Result<Player, D::Error>
+//     where
+//         D: Deserializer<'de>,
+//     {
+//         deserializer.deserialize_u64(PlayerVisitor)
+//     }
+// }
 
 fn player_init_system(
 	mut commands: Commands,
@@ -145,7 +145,7 @@ fn player_init_system(
 
 		commands.entity(entity).insert(PlayerBundle {
 			player: *player,
-			replication: Replication,
+			// replication: Replication,
 			gravity_affected: AffectedByGravity,
 			mesh: ColorMesh2dBundle {
 				mesh: meshes.add(player_mesh).into(),
@@ -219,27 +219,29 @@ fn player_init_system(
 }
 
 /// A movement event for the controlled box.
-#[derive(Debug, Default, Deserialize, Event, Serialize)]
-struct Inputs {
+#[derive(Debug, Default, Deserialize, Event, Serialize, Clone)]
+pub struct Inputs {
 	w: bool,
 	a: bool,
 	d: bool,
 }
 
 fn input_system(
-	mut move_events: EventWriter<Inputs>,
+	mut move_events: EventWriter<ClientMsgEvent>,
+	client_network: Res<Client<NetworkChannel>>,
 	keys: Res<Input<KeyCode>>,
 ) {
-	move_events.send(Inputs {
+	move_events.send(ClientMsgEvent { msg: crate::ClientMsg::Input(Inputs {
 		w: keys.pressed(KeyCode::W),
 		a: keys.pressed(KeyCode::A),
 		d: keys.pressed(KeyCode::D),
-	});
+	}), id: client_network.id() });
 }
+
 
 fn apply_player_movement(
 	time_step: Res<Time>,
-	mut move_events: EventReader<FromClient<Inputs>>,
+	mut move_events: EventReader<ClientMsgEvent>,
 	mut player_query: Query<(
 		&Player,
 		&mut ExternalForce,
@@ -253,64 +255,65 @@ fn apply_player_movement(
 	const THRUST_PARTICLE_SPAWN_RATE: f32 = 500.0;
 	const THRUST_PARTICLE_VELOCITY: f64 = 200.0;
 
-	for FromClient { client_id, event } in move_events.read() {
+	for input in move_events.read() {
+		let ClientMsgEvent { msg: ClientMsg::Input(input), .. } = input.clone() else {
+			continue;
+		};
+
 		// info!("received event {event:?} from client {client_id}");
 		for (player, mut ext_forces, mut avel, lvel, rot, children) in &mut player_query {
-			if *client_id == player.0 {
-				let child_id = *children.get(0).unwrap(); // Thruster ID BC only 1 child that is the truster
+			let child_id = *children.get(0).unwrap(); // Thruster ID BC only 1 child that is the truster
 
-				if event.w {
-					// dbg!(&ext_forces);
-					ext_forces.apply_force(rot.rotate(DVec2::Y * 1.5e8 * time_step.delta().as_secs_f64()));
-			
-					particle_effect_query
-						.get_mut(child_id)
-						.unwrap()
-						.1
-						.spawn_rate_per_second = THRUST_PARTICLE_SPAWN_RATE.into();
-				} else {
-					particle_effect_query
-						.get_mut(child_id)
-						.unwrap()
-						.1
-						.spawn_rate_per_second = 0.0.into();
-				}
-
-				let rot = Rotation::from_degrees(rot.as_degrees() - 90.);
-				let particle_velocity: DVec2 =
-					lvel.0 + (DVec2::new(rot.cos(), rot.sin()) * THRUST_PARTICLE_VELOCITY);
+			if input.w {
+				// dbg!(&ext_forces);
+				ext_forces.apply_force(rot.rotate(DVec2::Y * 1.5e8 * time_step.delta().as_secs_f64()));
 			
 				particle_effect_query
 					.get_mut(child_id)
 					.unwrap()
 					.1
-					.initial_speed = JitteredValue {
-					value: ((lvel.0.length() + THRUST_PARTICLE_VELOCITY) as f32),
-					jitter_range: Some(-300.0..300.0),
-				}; // (particle_velocity.length().abs() as f32).into();
+					.spawn_rate_per_second = THRUST_PARTICLE_SPAWN_RATE.into();
+			} else {
 				particle_effect_query
 					.get_mut(child_id)
 					.unwrap()
 					.1
-					.initial_rotation = (particle_velocity.angle_between(DVec2::new(1., 0.)) as f32).into();
-			
-				let mut avel_change = 0.;
-			
-				if event.a {
-					avel_change += 6.;
-				}
-			
-				if event.d {
-					avel_change -= 6.;
-				}
-			
-				if avel_change != 0. {
-					avel.0 += avel_change * time_step.delta().as_secs_f64();
-				}
-			
-				avel.0 *= 1. - ((1. - 0.2) * time_step.delta().as_secs_f64());
+					.spawn_rate_per_second = 0.0.into();
 			}
+
+			let rot = Rotation::from_degrees(rot.as_degrees() - 90.);
+			let particle_velocity: DVec2 =
+				lvel.0 + (DVec2::new(rot.cos(), rot.sin()) * THRUST_PARTICLE_VELOCITY);
+			
+			particle_effect_query
+				.get_mut(child_id)
+				.unwrap()
+				.1
+				.initial_speed = JitteredValue {
+				value: ((lvel.0.length() + THRUST_PARTICLE_VELOCITY) as f32),
+				jitter_range: Some(-300.0..300.0),
+			}; // (particle_velocity.length().abs() as f32).into();
+			particle_effect_query
+				.get_mut(child_id)
+				.unwrap()
+				.1
+				.initial_rotation = (particle_velocity.angle_between(DVec2::new(1., 0.)) as f32).into();
+			
+			let mut avel_change = 0.;
+			
+			if input.a {
+				avel_change += 6.;
+			}
+			
+			if input.d {
+				avel_change -= 6.;
+			}
+			
+			if avel_change != 0. {
+				avel.0 += avel_change * time_step.delta().as_secs_f64();
+			}
+			
+			avel.0 *= 1. - ((1. - 0.2) * time_step.delta().as_secs_f64());
 		}
 	}
-
 }

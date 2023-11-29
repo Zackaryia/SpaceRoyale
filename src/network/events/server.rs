@@ -1,69 +1,60 @@
 use bevy::prelude::*;
 use bincode::{DefaultOptions, Options};
-use serde::{de::DeserializeOwned, Serialize};
 use ordered_multimap::ListOrderedMultimap;
+use serde::{de::DeserializeOwned, Serialize};
 
 use crate::network::{
-    tick::{LastRepliconTick, MinRepliconTick, RepliconTick}, 
-    helper::{EventChannel, ClientSet, client_connected, ClientSn, ServerMsg, ClientId, SERVER_ID}, channels_config::ChannelManager
+	channels_config::ChannelManager,
+	helper::{client_connected, ClientId, ClientSet, ClientSn, EventChannel, ServerMsg, SERVER_ID},
+	tick::{LastRepliconTick, MinRepliconTick, RepliconTick},
 };
 
 #[cfg(feature = "server")]
-use crate::network::helper::{
-    ServerSn, ServerSet
-};
+use crate::network::helper::{ServerSet, ServerSn};
 
 /// An extension trait for [`App`] for creating server events.
 pub trait ServerEventAppExt {
-    /// Registers event `T` that will be emitted on client after sending [`ToClients<T>`] on server.
-    fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone>(
-        &mut self,
-    ) -> &mut Self;
+	/// Registers event `T` that will be emitted on client after sending [`ToClients<T>`] on server.
+	fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone>(&mut self) -> &mut Self;
 }
 
 impl ServerEventAppExt for App {
-    fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone>(
-        &mut self,
-    ) -> &mut Self {
-        // self.add_server_event_with::<T, _, _>(, )
+	fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone>(&mut self) -> &mut Self {
+		// self.add_server_event_with::<T, _, _>(, )
 
-        let channel_id = self
-            .world
-            .resource_mut::<ChannelManager>()
-            .create_server_channel();
+		let channel_id = self
+			.world
+			.resource_mut::<ChannelManager>()
+			.create_server_channel();
 
-        self.add_event::<T>()
-            .init_resource::<Events<ToClients<T>>>()
-            // .init_resource::<ServerEventQueue<T>>()
-            .insert_resource(EventChannel::<T>::new(channel_id))
-            .add_systems(
-                PreUpdate,
-                receiving_system::<T>
-                // .after(ClientPlugin::replication_receiving_system)
-                .in_set(ClientSet::Receive)
-                .run_if(client_connected()),
-            );
+		self.add_event::<T>()
+			.init_resource::<Events<ToClients<T>>>()
+			// .init_resource::<ServerEventQueue<T>>()
+			.insert_resource(EventChannel::<T>::new(channel_id))
+			.add_systems(
+				PreUpdate,
+				receiving_system::<T>
+					// .after(ClientPlugin::replication_receiving_system)
+					.in_set(ClientSet::Receive)
+					.run_if(client_connected()),
+			);
 
-        #[cfg(feature = "server")]
-        self.add_systems(
-                PostUpdate,
-                (
-                    (
-                        (min_tick_update_system::<T>, sending_system::<T>)
-                            .run_if(resource_exists::<ServerSn>()),
-                    )
-                        .chain()
-                        // .before(ServerPlugin::replication_sending_system)
-                        .in_set(ServerSet::Send),
-                    // reset_system::<T>.run_if(resource_removed::<ClientSn>()),
-                ),
-            );
+		#[cfg(feature = "server")]
+		self.add_systems(
+			PostUpdate,
+			(
+				((min_tick_update_system::<T>, sending_system::<T>)
+					.run_if(resource_exists::<ServerSn>()),)
+					.chain()
+					// .before(ServerPlugin::replication_sending_system)
+					.in_set(ServerSet::Send),
+				// reset_system::<T>.run_if(resource_removed::<ClientSn>()),
+			),
+		);
 
-        self
-    }
+		self
+	}
 }
-
-
 
 /// Applies all queued events if their tick is less or equal to [`LastRepliconTick`].
 // fn queue_system<T: Event>(
@@ -82,43 +73,51 @@ impl ServerEventAppExt for App {
 // }
 
 fn receiving_system<T: Event + DeserializeOwned>(
-    mut server_events: EventWriter<T>,
-    mut client: ResMut<ClientSn>,
-    last_tick: Res<LastRepliconTick>,
-    channel: Res<EventChannel<T>>,
+	mut server_events: EventWriter<T>,
+	mut client: ResMut<ClientSn>,
+	last_tick: Res<LastRepliconTick>,
+	channel: Res<EventChannel<T>>,
 ) {
-    if let Some(server_messages) = client.message_channel_buckets.get_mut(&channel.channel_id) {
-        let (actionable_messages, mut nonactionable_messages) = (
-            server_messages.iter().map(|x| x.clone()).filter(|message| { message.1 <= **last_tick }).collect::<Vec<ServerMsg>>(),
-            server_messages.iter().map(|x| x.clone()).filter(|message| { !(message.1 <= **last_tick) }).collect::<Vec<ServerMsg>>(),
-        );
+	if let Some(server_messages) = client.message_channel_buckets.get_mut(&channel.channel_id) {
+		let (actionable_messages, mut nonactionable_messages) = (
+			server_messages
+				.iter()
+				.map(|x| x.clone())
+				.filter(|message| message.1 <= **last_tick)
+				.collect::<Vec<ServerMsg>>(),
+			server_messages
+				.iter()
+				.map(|x| x.clone())
+				.filter(|message| !(message.1 <= **last_tick))
+				.collect::<Vec<ServerMsg>>(),
+		);
 
-        server_messages.clear();
-        server_messages.append(&mut nonactionable_messages);
+		server_messages.clear();
+		server_messages.append(&mut nonactionable_messages);
 
-        for server_msg in actionable_messages {
-            let event: T = DefaultOptions::new()
-                .deserialize(&server_msg.2)
-                .expect("server should send valid events");
-            server_events.send(event);
-        }
-    }
+		for server_msg in actionable_messages {
+			let event: T = DefaultOptions::new()
+				.deserialize(&server_msg.2)
+				.expect("server should send valid events");
+			server_events.send(event);
+		}
+	}
 }
 
 #[cfg(feature = "server")]
 fn sending_system<T: Event + Serialize + Clone>(
-    mut server: ResMut<ServerSn>,
-    mut server_events: EventReader<ToClients<T>>,
-    tick: Res<RepliconTick>,
-    channel: Res<EventChannel<T>>,
+	mut server: ResMut<ServerSn>,
+	mut server_events: EventReader<ToClients<T>>,
+	tick: Res<RepliconTick>,
+	channel: Res<EventChannel<T>>,
 ) {
-    for ToClients { event, mode} in server_events.read() {
-        let message = DefaultOptions::new()
-            .serialize(event)
-            .expect("server event should be serializable");
+	for ToClients { event, mode } in server_events.read() {
+		let message = DefaultOptions::new()
+			.serialize(event)
+			.expect("server event should be serializable");
 
-        send(&mut server, channel.clone(), *mode, *tick, message);
-    }
+		send(&mut server, channel.clone(), *mode, *tick, message);
+	}
 }
 
 /// Updates [`MinRepliconTick`] to force server to send replication message even if there were no world changes.
@@ -126,13 +125,13 @@ fn sending_system<T: Event + Serialize + Clone>(
 /// Needed because events on a client won't be emitted until the client acknowledges the event tick.
 /// See also [`ServerEventQueue`].
 fn min_tick_update_system<T: Event>(
-    mut server_events: EventReader<ToClients<T>>,
-    mut min_tick: ResMut<MinRepliconTick>,
-    tick: Res<RepliconTick>,
+	mut server_events: EventReader<ToClients<T>>,
+	mut min_tick: ResMut<MinRepliconTick>,
+	tick: Res<RepliconTick>,
 ) {
-    if server_events.read().count() > 0 {
-        **min_tick = *tick;
-    }
+	if server_events.read().count() > 0 {
+		**min_tick = *tick;
+	}
 }
 
 /// Transforms [`ToClients<T>`] events into `T` events to "emulate"
@@ -170,46 +169,63 @@ fn min_tick_update_system<T: Event>(
 // /// See also [`ServerEventAppExt::add_server_event_with`]
 #[cfg(feature = "server")]
 pub fn send<T>(
-    server: &mut ServerSn,
-    channel: EventChannel<T>,
-    mode: SendMode,
-    tick: RepliconTick,
-    message: Vec<u8>,
+	server: &mut ServerSn,
+	channel: EventChannel<T>,
+	mode: SendMode,
+	tick: RepliconTick,
+	message: Vec<u8>,
 ) {
-    match mode {
-        SendMode::Broadcast => {
-            for client_id in server.client_connections.iter() {
-                server.simplenet.send(*client_id, ServerMsg(channel.channel_id, tick, message.clone())).unwrap();
-            }
-        }
-        SendMode::BroadcastExcept(except_client_id) => {
-            for client_id in server.client_connections.iter() {
-                if *client_id == except_client_id { continue; }
-                server.simplenet.send(*client_id, ServerMsg(channel.channel_id, tick, message.clone())).unwrap();
-            }    
-        }
-        SendMode::Direct(client_id) => {
-            if client_id != SERVER_ID {
-                server.simplenet.send(client_id, ServerMsg(channel.channel_id, tick, message)).unwrap();
-            }
-        }
-    }
+	match mode {
+		SendMode::Broadcast => {
+			for client_id in server.client_connections.iter() {
+				server
+					.simplenet
+					.send(
+						*client_id,
+						ServerMsg(channel.channel_id, tick, message.clone()),
+					)
+					.unwrap();
+			}
+		}
+		SendMode::BroadcastExcept(except_client_id) => {
+			for client_id in server.client_connections.iter() {
+				if *client_id == except_client_id {
+					continue;
+				}
+				server
+					.simplenet
+					.send(
+						*client_id,
+						ServerMsg(channel.channel_id, tick, message.clone()),
+					)
+					.unwrap();
+			}
+		}
+		SendMode::Direct(client_id) => {
+			if client_id != SERVER_ID {
+				server
+					.simplenet
+					.send(client_id, ServerMsg(channel.channel_id, tick, message))
+					.unwrap();
+			}
+		}
+	}
 }
 
 /// An event that will be send to client(s).
 #[derive(Clone, Copy, Debug, Event)]
 pub struct ToClients<T> {
-    pub mode: SendMode,
-    pub event: T,
+	pub mode: SendMode,
+	pub event: T,
 }
 
 /// Type of server message sending.
 #[derive(Clone, Copy, Debug)]
 #[allow(unused)]
 pub enum SendMode {
-    Broadcast,
-    BroadcastExcept(ClientId),
-    Direct(ClientId),
+	Broadcast,
+	BroadcastExcept(ClientId),
+	Direct(ClientId),
 }
 
 /// Stores all received events from server that arrived earlier then replication message with their tick.
@@ -220,7 +236,7 @@ pub enum SendMode {
 pub struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
 
 impl<T> Default for ServerEventQueue<T> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
+	fn default() -> Self {
+		Self(Default::default())
+	}
 }

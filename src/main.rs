@@ -1,4 +1,4 @@
-// Run 
+// Run
 // cargo run --no-default-features --features server
 // CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-server-runner RUSTFLAGS=--cfg=web_sys_unstable_apis cargo run --target wasm32-unknown-unknown --no-default-features --features client
 
@@ -6,22 +6,19 @@ use bevy::prelude::*;
 use bevy::transform::TransformSystem;
 use bevy_particle_systems::ParticleSystemPlugin;
 
-
 mod helper;
 // mod replicon_components;
 
 mod map;
-mod player;
 mod network;
+mod player;
 
 // use network::*;
-
 
 use map::MapPlugin;
 use network::NetworkPlugin;
 use player::{Player, PlayerPlugin};
 // use replicon_components::RepliconComponentsPlugin;
-
 
 // use bevy_replicon::{
 //     prelude::*,
@@ -56,14 +53,13 @@ use bevy_xpbd_2d::prelude::*;
 //     }
 // }
 
-
 fn main() {
 	App::new()
 		// .init_resource::<Cli>() // Parse CLI before creating window.
 		.add_plugins((
 			DefaultPlugins,
 			ParticleSystemPlugin::default(),
-			PhysicsPlugins::default(), 
+			PhysicsPlugins::default(),
 			NetworkPlugin,
 		))
 		// .add_plugins(WorldInspectorPlugin::new())
@@ -123,7 +119,6 @@ fn setup(mut commands: Commands) {
 // 		.lerp(player_position.as_vec3(), time.delta_seconds() * 10.);
 // }
 
-
 fn update_camera(
 	player_position_query: Query<(&Position, &Player)>,
 	mut camera_query: Query<&mut Transform, With<PlayerCamera>>,
@@ -133,8 +128,9 @@ fn update_camera(
 	for (player_position, _player) in &player_position_query {
 		let mut transform = camera_query.get_single_mut().unwrap();
 
-		transform.translation = transform
-			.translation
-			.lerp(player_position.extend(1.).as_vec3(), time.delta_seconds() * 10.);
-	}	
+		transform.translation = transform.translation.lerp(
+			player_position.extend(1.).as_vec3(),
+			time.delta_seconds() * 10.,
+		);
+	}
 }

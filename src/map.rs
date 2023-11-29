@@ -189,12 +189,13 @@ fn check_planet_valid(size: f64, planet_list: &Vec<PlanetGen>, canidate: &Planet
 	true
 }
 
-
 use rand_chacha;
 
 pub fn generate_world(offset: (f64, f64), size: f64, planet_count: i32) -> Vec<PlanetGen> {
 	assert!(size > 0.0);
-	let mut rng = rand_chacha::ChaChaRng::seed_from_u64(u64::from_be_bytes([b'Z', b'a', b'c', b'k', b'C', b'o', b'o', b'l']));
+	let mut rng = rand_chacha::ChaChaRng::seed_from_u64(u64::from_be_bytes([
+		b'Z', b'a', b'c', b'k', b'C', b'o', b'o', b'l',
+	]));
 
 	let mut planets: Vec<PlanetGen> = vec![];
 	let mut planet_frequencies: Vec<(PlanetTypesGen, f64)> = vec![];

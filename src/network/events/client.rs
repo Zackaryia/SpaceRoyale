@@ -60,11 +60,7 @@ fn receiving_system<T: Event + DeserializeOwned>(
 ) {
 	if let Some(message_queue) = server.message_channel_buckets.get_mut(&channel.channel_id) {
 		for (client_id, client_message) in message_queue.drain(0..) {
-			let event: T = DefaultOptions::new()
-				.deserialize(&client_message.1)
-				.expect("server should send valid events");
-
-			client_events.send(FromClient { client_id, event })
+			client_events.send(FromClient { client_id, event: client_message.get_event::<T>() })
 		}
 	}
 }
@@ -81,7 +77,7 @@ fn sending_system<T: Event + Serialize>(
 
 		client
 			.simplenet
-			.send(ClientMsg(channel.channel_id, message))
+			.send(ClientMsg { channel_id: channel.channel_id, event: message })
 			.unwrap();
 	}
 }

@@ -10,9 +10,9 @@ use bevy_simplenet::Client;
 
 #[cfg(feature = "server")]
 use bevy_simplenet::Server;
+use bincode::{DefaultOptions, Options as _};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-
-use super::tick::RepliconTick;
 
 pub const SERVER_ID: ClientId = 0;
 
@@ -67,10 +67,59 @@ pub enum ClientSet {
 pub struct ConnectMsg(pub String);
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ServerMsg(pub ChannelId, pub RepliconTick, pub Vec<u8>);
+pub struct ServerMsg {
+    pub channel_id: ChannelId, 
+    // pub tick: Option<RepliconTick>, 
+    pub event: Vec<u8>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ClientMsg(pub ChannelId, pub Vec<u8>);
+pub struct ClientMsg {
+    pub channel_id: ChannelId, 
+    pub event: Vec<u8>
+}
+
+pub trait GetData {
+    fn get_bytes(&self) -> Vec<u8>;
+    fn from_bytes(message: Vec<u8>, channel_id: ChannelId) -> Self;
+    fn get_event<T: DeserializeOwned>(&self) -> T;
+}
+
+impl GetData for ServerMsg {
+    fn get_bytes(&self) -> Vec<u8> {
+        DefaultOptions::new().serialize(&self.event.clone()).expect("serializable")
+    }
+
+    fn from_bytes(message: Vec<u8>, channel_id: ChannelId) -> Self {
+        let event = DefaultOptions::new()
+            .deserialize(&message)
+            .expect("server should send valid events");
+
+        Self { channel_id, event }
+    }
+
+    fn get_event<T: DeserializeOwned>(&self) -> T {
+        DefaultOptions::new()
+            .deserialize(&self.event)
+            .expect("server should send valid events")
+    }
+}
+
+impl GetData for ClientMsg {
+    fn get_bytes(&self) -> Vec<u8> {
+        self.event.clone()
+    }
+
+    fn from_bytes(message: Vec<u8>, channel_id: ChannelId) -> Self {
+        Self { channel_id, event: message }
+    }
+
+    fn get_event<T: DeserializeOwned>(&self) -> T {
+        DefaultOptions::new()
+            .deserialize(&self.event)
+            .expect("server should send valid events")
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct NetworkChannel;
@@ -132,3 +181,4 @@ pub fn client_disconnected() -> impl FnMut(Option<Res<ClientSn>>) -> bool {
 pub fn has_authority() -> impl FnMut(Option<Res<ClientSn>>) -> bool + Clone {
 	move |client| client.is_none()
 }
+

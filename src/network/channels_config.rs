@@ -1,5 +1,9 @@
 use bevy::prelude::*;
 
+pub struct ServerChannelConfig {
+    
+}
+
 /// ID of the server replication channel.
 ///
 /// See also [`NetworkChannels`].
@@ -25,8 +29,8 @@ pub struct ChannelManager {
 impl Default for ChannelManager {
 	fn default() -> Self {
 		Self {
-			server: 1,
-			client: 1,
+			server: 0,
+			client: 0,
 			// default_max_bytes: 5 * 1024 * 1024, // Value from `DefaultChannel::config()`.
 		}
 	}

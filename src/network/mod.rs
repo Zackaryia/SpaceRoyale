@@ -2,7 +2,6 @@ pub mod helper;
 // mod events;
 pub mod channels_config;
 pub mod events;
-pub mod tick;
 
 use bevy::prelude::*;
 
@@ -13,26 +12,30 @@ use bevy_simplenet::{ClientConfig, ClientFactory};
 
 #[cfg(feature = "server")]
 use bevy_simplenet::{AcceptorConfig, ServerConfig, ServerFactory, ServerReport};
+use serde::{Deserialize, Serialize};
 
 use crate::network::helper::NetworkChannel;
 
 use self::channels_config::ChannelManager;
-use self::helper::{ClientSet, ClientSn, ConnectMsg};
+use self::events::server::ServerEventAppExt;
+use self::helper::{ClientSet, ClientSn, ConnectMsg, ClientId};
 
 #[cfg(feature = "server")]
 use self::helper::{ServerSet, ServerSn};
 
-use self::tick::{LastRepliconTick, MinRepliconTick, RepliconTick};
+// use self::tick::{LastRepliconTick, MinRepliconTick, RepliconTick};
 
 pub struct NetworkPlugin;
 
 impl Plugin for NetworkPlugin {
 	fn build(&self, app: &mut App) {
 		app.add_systems(PreStartup, Self::startup)
-			.init_resource::<ChannelManager>();
+			.init_resource::<ChannelManager>()
+            .add_server_event::<InternalConnectionEvent>();
 
 		#[cfg(feature = "client")]
-		app.init_resource::<LastRepliconTick>()
+		app
+			// .init_resource::<LastRepliconTick>()
 			.configure_sets(
 				PreUpdate,
 				ClientSet::Receive, //.after(NetcodeClientPlugin::update_system),
@@ -49,8 +52,9 @@ impl Plugin for NetworkPlugin {
 			);
 
 		#[cfg(feature = "server")]
-		app.init_resource::<RepliconTick>()
-			.init_resource::<MinRepliconTick>()
+		app
+			// .init_resource::<RepliconTick>()
+			// .init_resource::<MinRepliconTick>()
 			.add_systems(
 				PreUpdate,
 				Self::server_reciving_messages_bucketer
@@ -58,6 +62,12 @@ impl Plugin for NetworkPlugin {
 					.run_if(resource_exists::<ServerSn>()),
 			);
 	}
+}
+
+#[derive(Debug, Deserialize, Event, Serialize, Clone)]
+pub enum InternalConnectionEvent {
+    Connected(ClientId),
+    Disconnected(ClientId),
 }
 
 impl NetworkPlugin {
@@ -107,6 +117,8 @@ impl NetworkPlugin {
 
 	#[cfg(feature = "server")]
 	pub fn server_reciving_messages_bucketer(mut server: ResMut<ServerSn>) {
+        use crate::network::events::server::send_server_event;
+
 		while let Some((client_id, message)) = server.simplenet.next() {
 			match message {
 				bevy_simplenet::ServerEvent::Report(report) => {
@@ -114,22 +126,34 @@ impl NetworkPlugin {
 					match report {
 						ServerReport::Connected(_env, _connection_msg) => {
 							assert!(server.client_connections.insert(client_id));
+                            send_server_event::<InternalConnectionEvent>(
+                                &mut server, 
+                                0, 
+                                events::server::SendMode::Broadcast, 
+                                InternalConnectionEvent::Connected(client_id)
+                            )
 						}
 						ServerReport::Disconnected => {
 							assert!(server.client_connections.remove(&client_id));
+                            send_server_event::<InternalConnectionEvent>(
+                                &mut server, 
+                                0, 
+                                events::server::SendMode::Broadcast, 
+                                InternalConnectionEvent::Disconnected(client_id)
+                            )
 						}
 					}
 				}
 				bevy_simplenet::ServerEvent::Msg(message) => {
-					if server.message_channel_buckets.get(&message.0).is_none() {
+					if server.message_channel_buckets.get(&message.channel_id).is_none() {
 						assert!(server
 							.message_channel_buckets
-							.insert(message.0, Vec::new())
+							.insert(message.channel_id, Vec::new())
 							.is_none());
 					}
 					server
 						.message_channel_buckets
-						.get_mut(&message.0)
+						.get_mut(&message.channel_id)
 						.unwrap()
 						.push((client_id, message));
 				}
@@ -146,16 +170,16 @@ impl NetworkPlugin {
 					dbg!(data);
 				}
 				bevy_simplenet::ClientEvent::Msg(message) => {
-					if client.message_channel_buckets.get(&message.0).is_none() {
+					if client.message_channel_buckets.get(&message.channel_id).is_none() {
 						assert!(client
 							.message_channel_buckets
-							.insert(message.0, Vec::new())
+							.insert(message.channel_id, Vec::new())
 							.is_none());
 					}
 
 					client
 						.message_channel_buckets
-						.get_mut(&message.0)
+						.get_mut(&message.channel_id)
 						.unwrap()
 						.push(message);
 				}

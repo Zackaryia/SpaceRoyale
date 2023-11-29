@@ -5,8 +5,8 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::network::{
 	channels_config::ChannelManager,
-	helper::{client_connected, ClientId, ClientSet, ClientSn, EventChannel, ServerMsg, SERVER_ID},
-	tick::{LastRepliconTick, MinRepliconTick, RepliconTick},
+	helper::{client_connected, ClientId, ClientSet, ClientSn, EventChannel, ServerMsg, SERVER_ID, GetData},
+	// tick::{LastRepliconTick, MinRepliconTick, RepliconTick, self},
 };
 
 #[cfg(feature = "server")]
@@ -43,7 +43,7 @@ impl ServerEventAppExt for App {
 		self.add_systems(
 			PostUpdate,
 			(
-				((min_tick_update_system::<T>, sending_system::<T>)
+				(sending_system::<T>
 					.run_if(resource_exists::<ServerSn>()),)
 					.chain()
 					// .before(ServerPlugin::replication_sending_system)
@@ -72,10 +72,16 @@ impl ServerEventAppExt for App {
 //     }
 // }
 
+fn deserialize_event_messages<T: DeserializeOwned>(message: Vec<u8>) -> T {
+    DefaultOptions::new()
+        .deserialize(&message)
+        .expect("server should send valid events")
+}
+
 fn receiving_system<T: Event + DeserializeOwned>(
 	mut server_events: EventWriter<T>,
 	mut client: ResMut<ClientSn>,
-	last_tick: Res<LastRepliconTick>,
+	// last_tick: Res<LastRepliconTick>,
 	channel: Res<EventChannel<T>>,
 ) {
 	if let Some(server_messages) = client.message_channel_buckets.get_mut(&channel.channel_id) {
@@ -83,23 +89,18 @@ fn receiving_system<T: Event + DeserializeOwned>(
 			server_messages
 				.iter()
 				.map(|x| x.clone())
-				.filter(|message| message.1 <= **last_tick)
 				.collect::<Vec<ServerMsg>>(),
 			server_messages
-				.iter()
-				.map(|x| x.clone())
-				.filter(|message| !(message.1 <= **last_tick))
-				.collect::<Vec<ServerMsg>>(),
-		);
+                .iter()
+                .map(|x| x.clone())
+                .collect::<Vec<ServerMsg>>(),
+        );
 
 		server_messages.clear();
 		server_messages.append(&mut nonactionable_messages);
 
 		for server_msg in actionable_messages {
-			let event: T = DefaultOptions::new()
-				.deserialize(&server_msg.2)
-				.expect("server should send valid events");
-			server_events.send(event);
+			server_events.send(server_msg.get_event::<T>());
 		}
 	}
 }
@@ -108,15 +109,11 @@ fn receiving_system<T: Event + DeserializeOwned>(
 fn sending_system<T: Event + Serialize + Clone>(
 	mut server: ResMut<ServerSn>,
 	mut server_events: EventReader<ToClients<T>>,
-	tick: Res<RepliconTick>,
+	// tick: Res<RepliconTick>,
 	channel: Res<EventChannel<T>>,
 ) {
 	for ToClients { event, mode } in server_events.read() {
-		let message = DefaultOptions::new()
-			.serialize(event)
-			.expect("server event should be serializable");
-
-		send(&mut server, channel.clone(), *mode, *tick, message);
+		send_server_event::<T>(&mut server, channel.channel_id, *mode, event.clone());
 	}
 }
 
@@ -124,15 +121,15 @@ fn sending_system<T: Event + Serialize + Clone>(
 ///
 /// Needed because events on a client won't be emitted until the client acknowledges the event tick.
 /// See also [`ServerEventQueue`].
-fn min_tick_update_system<T: Event>(
-	mut server_events: EventReader<ToClients<T>>,
-	mut min_tick: ResMut<MinRepliconTick>,
-	tick: Res<RepliconTick>,
-) {
-	if server_events.read().count() > 0 {
-		**min_tick = *tick;
-	}
-}
+// fn min_tick_update_system<T: Event>(
+// 	mut server_events: EventReader<ToClients<T>>,
+// 	mut min_tick: ResMut<MinRepliconTick>,
+// 	tick: Res<RepliconTick>,
+// ) {
+// 	if server_events.read().count() > 0 {
+// 		**min_tick = *tick;
+// 	}
+// }
 
 /// Transforms [`ToClients<T>`] events into `T` events to "emulate"
 /// message sending for offline mode or when server is also a player
@@ -167,22 +164,31 @@ fn min_tick_update_system<T: Event>(
 ///
 /// Helper for custom sending systems.
 // /// See also [`ServerEventAppExt::add_server_event_with`]
+use crate::network::helper::ChannelId;
+
 #[cfg(feature = "server")]
-pub fn send<T>(
+pub fn send_server_event<T: Serialize>(
 	server: &mut ServerSn,
-	channel: EventChannel<T>,
+	channel_id: ChannelId,
 	mode: SendMode,
-	tick: RepliconTick,
-	message: Vec<u8>,
+    // tick: Option<RepliconTick>,
+	message: T,
 ) {
-	match mode {
+    let message = DefaultOptions::new()
+        .serialize(&message)
+        .expect("server event should be serializable");	
+
+    match mode {
 		SendMode::Broadcast => {
 			for client_id in server.client_connections.iter() {
 				server
 					.simplenet
 					.send(
 						*client_id,
-						ServerMsg(channel.channel_id, tick, message.clone()),
+						ServerMsg {
+                            channel_id,
+                            event: message.clone(),
+                        }
 					)
 					.unwrap();
 			}
@@ -196,8 +202,12 @@ pub fn send<T>(
 					.simplenet
 					.send(
 						*client_id,
-						ServerMsg(channel.channel_id, tick, message.clone()),
-					)
+						ServerMsg {
+                            channel_id,
+                            // tick,
+                            event: message.clone(),
+                        }
+                    )
 					.unwrap();
 			}
 		}
@@ -205,7 +215,14 @@ pub fn send<T>(
 			if client_id != SERVER_ID {
 				server
 					.simplenet
-					.send(client_id, ServerMsg(channel.channel_id, tick, message))
+					.send(
+                        client_id,
+                        ServerMsg {
+                            channel_id,
+                            // tick,
+                            event: message.clone(),
+                        }
+                    )
 					.unwrap();
 			}
 		}
@@ -228,15 +245,15 @@ pub enum SendMode {
 	Direct(ClientId),
 }
 
-/// Stores all received events from server that arrived earlier then replication message with their tick.
-///
-/// Stores data sorted by ticks and maintains order of arrival.
-/// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
-#[derive(Deref, DerefMut, Resource)]
-pub struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
+// Stores all received events from server that arrived earlier then replication message with their tick.
+//
+// Stores data sorted by ticks and maintains order of arrival.
+// Needed to ensure that when an event is triggered, all the data that it affects or references already exists.
+// #[derive(Deref, DerefMut, Resource)]
+// pub struct ServerEventQueue<T>(ListOrderedMultimap<RepliconTick, T>);
 
-impl<T> Default for ServerEventQueue<T> {
-	fn default() -> Self {
-		Self(Default::default())
-	}
-}
+// impl<T> Default for ServerEventQueue<T> {
+// 	fn default() -> Self {
+// 		Self(Default::default())
+// 	}
+// }

@@ -90,7 +90,7 @@ fn spawn_map(
 /////////////////////////
 
 use bevy::render::color::Color;
-use rand::{thread_rng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng};
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -242,7 +242,7 @@ pub fn generate_world(offset: (f64, f64), size: f64, planet_count: i32) -> Vec<P
 		}
 	}
 
-	for mut planet in &mut planets {
+	for planet in &mut planets {
 		planet.x += offset.0;
 		planet.y += offset.1;
 	}

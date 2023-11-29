@@ -2,7 +2,6 @@
 // cargo run --no-default-features --features server
 // CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-server-runner RUSTFLAGS=--cfg=web_sys_unstable_apis cargo run --target wasm32-unknown-unknown --no-default-features --features client
 
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::prelude::*;
 use bevy::transform::TransformSystem;
 use bevy_particle_systems::ParticleSystemPlugin;
@@ -15,22 +14,14 @@ mod map;
 mod player;
 mod network;
 
-use network::*;
+// use network::*;
 
 
 use map::MapPlugin;
+use network::NetworkPlugin;
 use player::{Player, PlayerPlugin};
 // use replicon_components::RepliconComponentsPlugin;
 
-
-use std::{
-    error::Error,
-    net::{IpAddr, Ipv4Addr, SocketAddr, UdpSocket},
-    time::SystemTime,
-};
-
-use clap::Parser;
-use serde::{Deserialize, Serialize};
 
 // use bevy_replicon::{
 //     prelude::*,
@@ -43,9 +34,6 @@ use serde::{Deserialize, Serialize};
 //     },
 // };
 use bevy_xpbd_2d::prelude::*;
-
-const PORT: u16 = 5000;
-const PROTOCOL_ID: u64 = 0;
 
 // #[derive(Parser, PartialEq, Resource)]
 // enum Cli {
@@ -76,7 +64,7 @@ fn main() {
 			DefaultPlugins,
 			ParticleSystemPlugin::default(),
 			PhysicsPlugins::default(), 
-			NetworkPlugin,			
+			NetworkPlugin,
 		))
 		// .add_plugins(WorldInspectorPlugin::new())
 		.add_systems(Startup, setup)
@@ -142,24 +130,11 @@ fn update_camera(
 	time: Res<Time>,
 	// client_id: Res<ClientIdResource>,
 ) {
-	for (player_position, player) in &player_position_query {
+	for (player_position, _player) in &player_position_query {
 		let mut transform = camera_query.get_single_mut().unwrap();
 
 		transform.translation = transform
 			.translation
 			.lerp(player_position.extend(1.).as_vec3(), time.delta_seconds() * 10.);
 	}	
-}
-
-// define a channel
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ConnectMsg(pub String);
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ServerMsg(pub u64);
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ClientMsg {
-    Connection,
-    Input(player::Inputs),
 }

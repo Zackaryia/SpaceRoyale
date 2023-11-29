@@ -10,13 +10,15 @@ anyhow = "1.0.75"
 # TODO: Remove dynamic_linking feature on release
 bevy = { version = "0.12" }
 bevy_particle_systems = "0.11"
-bevy_simplenet = { path = "../bevy_simplenet" }
+bevy_simplenet = { version = "0.5.0", default-features = false, features = ["bevy", "client"] }
 # bevy_replicon = { git = "https://github.com/Zackaryia/bevy_replicon", branch = "test" }
 # bevy-inspector-egui = "0.21.0"
 # bevy_hanabi = "0.8.0"
 bevy_xpbd_2d = { git = "https://github.com/Jondolf/bevy_xpbd", default-features = false, features = [ "2d", "f64", "debug-plugin", "serialize", "enhanced-determinism" ] }
+bincode = "1.3.3"
 clap = { version = "4.4", features = ["derive"] }
 enfync = "0.1.0"
+ordered-multimap = "0.7.1"
 rand = "0.8"
 rand_chacha = "0.3.1"
 serde = { version = "1", features = ["derive"] }
@@ -31,6 +33,9 @@ opt-level = 1
 opt-level = 2
 
 [features]
-default = ["server", "client"]
-server = []
+default = ["client", "server"]
+server = ["bevy_simplenet/server"]
 client = []
+
+# [target.'cfg(target_arch = "wasm32")']
+# rustflags = ["--cfg=web_sys_unstable_apis"]

@@ -1,15 +1,16 @@
-use core::fmt;
-
-use bevy::{math::{DVec2, DVec3}, prelude::*, render::mesh::VertexAttributeValues};
+use bevy::{math::DVec2, prelude::*, render::mesh::VertexAttributeValues};
 use bevy_particle_systems::*;
-use bevy_simplenet::{Client, Server};
+#[cfg(feature = "server")]
+use crate::network::helper::ServerSn;
 // use bevy_replicon::renet::ClientId;
 use bevy_xpbd_2d::prelude::*;
-use serde::{Deserialize, Serialize, Serializer, Deserializer};
+use serde::{Deserialize, Serialize};
+use crate::network::events::client::{ClientEventAppExt, FromClient};
 
 // use bevy_replicon::prelude::*;
 
-use crate::{map::AffectedByGravity, network::{ClientMsgEvent, NetworkChannel}, ClientMsg};
+use crate::{map::AffectedByGravity, network::helper::ClientSn};
+// use crate::{network::{ClientMsgEvent, NetworkChannel}, ClientMsg};
 
 pub struct PlayerPlugin;
 
@@ -17,13 +18,13 @@ impl Plugin for PlayerPlugin {
 	fn build(&self, app: &mut App) {
 		app
 			// .replicate::<Player>()
-			.add_event::<Inputs>()
-			.add_systems(Update, 
-				(apply_player_movement.run_if(resource_exists::<Server<NetworkChannel>>()), // Runs only on the server or a single player.
-				input_system.run_if(resource_exists::<Client<NetworkChannel>>()))
-			)
+			.add_client_event::<Inputs>()
+			.add_systems(Update, input_system.run_if(resource_exists::<ClientSn>()))
 			// .add_systems(Startup, spawn_player)
 			.add_systems(PreUpdate, player_init_system);
+
+		#[cfg(feature = "server")]
+		app.add_systems(Update, apply_player_movement.run_if(resource_exists::<ServerSn>()));
 	}
 }
 
@@ -227,21 +228,23 @@ pub struct Inputs {
 }
 
 fn input_system(
-	mut move_events: EventWriter<ClientMsgEvent>,
-	client_network: Res<Client<NetworkChannel>>,
+	mut move_events: EventWriter<Inputs>,
+	// mut client: ResMut<ClientSn>,
 	keys: Res<Input<KeyCode>>,
 ) {
-	move_events.send(ClientMsgEvent { msg: crate::ClientMsg::Input(Inputs {
+	dbg!(&keys);
+
+	move_events.send(Inputs {
 		w: keys.pressed(KeyCode::W),
 		a: keys.pressed(KeyCode::A),
 		d: keys.pressed(KeyCode::D),
-	}), id: client_network.id() });
+	});
 }
 
 
 fn apply_player_movement(
 	time_step: Res<Time>,
-	mut move_events: EventReader<ClientMsgEvent>,
+	mut move_events: EventReader<FromClient<Inputs>>,
 	mut player_query: Query<(
 		&Player,
 		&mut ExternalForce,
@@ -256,15 +259,14 @@ fn apply_player_movement(
 	const THRUST_PARTICLE_VELOCITY: f64 = 200.0;
 
 	for input in move_events.read() {
-		let ClientMsgEvent { msg: ClientMsg::Input(input), .. } = input.clone() else {
-			continue;
-		};
-
+		dbg!(&input);
+		let FromClient { client_id: _client_id, event: inputs } = input.clone();
+		
 		// info!("received event {event:?} from client {client_id}");
-		for (player, mut ext_forces, mut avel, lvel, rot, children) in &mut player_query {
+		for (_player, mut ext_forces, mut avel, lvel, rot, children) in &mut player_query {
 			let child_id = *children.get(0).unwrap(); // Thruster ID BC only 1 child that is the truster
 
-			if input.w {
+			if inputs.w {
 				// dbg!(&ext_forces);
 				ext_forces.apply_force(rot.rotate(DVec2::Y * 1.5e8 * time_step.delta().as_secs_f64()));
 			
@@ -301,11 +303,11 @@ fn apply_player_movement(
 			
 			let mut avel_change = 0.;
 			
-			if input.a {
+			if inputs.a {
 				avel_change += 6.;
 			}
 			
-			if input.d {
+			if inputs.d {
 				avel_change -= 6.;
 			}
 			

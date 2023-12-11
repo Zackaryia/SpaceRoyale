@@ -54,8 +54,8 @@ fn spawn_map(
 	mut meshes: ResMut<Assets<Mesh>>,
 	mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-	let world_size = 4e5;
-	let planet_density: f64 = 3.5 * 1e-4;
+	let world_size = 3e4;
+	let planet_density: f64 = 3.65 * 1e-4;
 	let gened_world = generate_world(
 		(world_size * -0.5, world_size * -0.5),
 		world_size,
@@ -164,7 +164,7 @@ pub struct PlanetGen {
 	pub planet_type: PlanetTypesGen,
 }
 
-const MINIMUM_PLANET_DISTANCE: f64 = 670.0;
+const MINIMUM_PLANET_DISTANCE: f64 = 640.0;
 
 fn check_planet_valid(size: f64, planet_list: &Vec<PlanetGen>, canidate: &PlanetGen) -> bool {
 	if canidate.x - canidate.radius > size || canidate.x - canidate.radius < 0.0 {
@@ -237,7 +237,7 @@ pub fn generate_world(offset: (f64, f64), size: f64, planet_count: i32) -> Vec<P
 		}
 	}
 
-	for mut planet in &mut planets {
+	for planet in &mut planets {
 		planet.x += offset.0;
 		planet.y += offset.1;
 	}

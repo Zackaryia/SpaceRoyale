@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bincode::{DefaultOptions, Options};
-use ordered_multimap::ListOrderedMultimap;
+// use ordered_multimap::ListOrderedMultimap;
 use serde::{de::DeserializeOwned, Serialize};
-
+use std::fmt::Debug;
 use crate::network::{
 	channels_config::ChannelManager,
 	helper::{client_connected, ClientId, ClientSet, ClientSn, EventChannel, ServerMsg, SERVER_ID, GetData},
@@ -15,11 +15,11 @@ use crate::network::helper::{ServerSet, ServerSn};
 /// An extension trait for [`App`] for creating server events.
 pub trait ServerEventAppExt {
 	/// Registers event `T` that will be emitted on client after sending [`ToClients<T>`] on server.
-	fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone>(&mut self) -> &mut Self;
+	fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone + Debug>(&mut self) -> &mut Self;
 }
 
 impl ServerEventAppExt for App {
-	fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone>(&mut self) -> &mut Self {
+	fn add_server_event<T: Event + Serialize + DeserializeOwned + Clone + Debug>(&mut self) -> &mut Self {
 		// self.add_server_event_with::<T, _, _>(, )
 
 		let channel_id = self
@@ -27,8 +27,10 @@ impl ServerEventAppExt for App {
 			.resource_mut::<ChannelManager>()
 			.create_server_channel();
 
+		dbg!("server channel", std::any::type_name::<T>(), channel_id);
+
 		self.add_event::<T>()
-			.init_resource::<Events<ToClients<T>>>()
+			.init_resource::<Events<ToClient<T>>>()
 			// .init_resource::<ServerEventQueue<T>>()
 			.insert_resource(EventChannel::<T>::new(channel_id))
 			.add_systems(
@@ -72,48 +74,35 @@ impl ServerEventAppExt for App {
 //     }
 // }
 
-fn deserialize_event_messages<T: DeserializeOwned>(message: Vec<u8>) -> T {
-    DefaultOptions::new()
-        .deserialize(&message)
-        .expect("server should send valid events")
-}
+// fn deserialize_event_messages<T: DeserializeOwned>(message: Vec<u8>) -> T {
+//     DefaultOptions::new()
+//         .deserialize(&message)
+//         .expect("server should send valid events")
+// }
 
-fn receiving_system<T: Event + DeserializeOwned>(
-	mut server_events: EventWriter<T>,
+fn receiving_system<T: Event + DeserializeOwned + Debug>(
+	mut server_events: EventWriter<ToClient<T>>,
 	mut client: ResMut<ClientSn>,
 	// last_tick: Res<LastRepliconTick>,
 	channel: Res<EventChannel<T>>,
 ) {
 	if let Some(server_messages) = client.message_channel_buckets.get_mut(&channel.channel_id) {
-		let (actionable_messages, mut nonactionable_messages) = (
-			server_messages
-				.iter()
-				.map(|x| x.clone())
-				.collect::<Vec<ServerMsg>>(),
-			server_messages
-                .iter()
-                .map(|x| x.clone())
-                .collect::<Vec<ServerMsg>>(),
-        );
-
-		server_messages.clear();
-		server_messages.append(&mut nonactionable_messages);
-
-		for server_msg in actionable_messages {
-			server_events.send(server_msg.get_event::<T>());
+		for server_msg in server_messages.drain(..) {
+			dbg!(server_msg.get_event::<T>());
+			server_events.send(ToClient { mode: None, event: server_msg.get_event::<T>() });
 		}
 	}
 }
 
 #[cfg(feature = "server")]
-fn sending_system<T: Event + Serialize + Clone>(
+fn sending_system<T: Event + Serialize + Clone + Debug>(
 	mut server: ResMut<ServerSn>,
-	mut server_events: EventReader<ToClients<T>>,
+	mut server_events: EventReader<ToClient<T>>,
 	// tick: Res<RepliconTick>,
 	channel: Res<EventChannel<T>>,
 ) {
-	for ToClients { event, mode } in server_events.read() {
-		send_server_event::<T>(&mut server, channel.channel_id, *mode, event.clone());
+	for ToClient { event, mode } in server_events.read() {
+		send_server_event::<T>(&mut server, channel.channel_id, mode.unwrap(), event.clone());
 	}
 }
 
@@ -167,13 +156,16 @@ fn sending_system<T: Event + Serialize + Clone>(
 use crate::network::helper::ChannelId;
 
 #[cfg(feature = "server")]
-pub fn send_server_event<T: Serialize>(
+pub fn send_server_event<T: Serialize + Debug>(
 	server: &mut ServerSn,
 	channel_id: ChannelId,
 	mode: SendMode,
     // tick: Option<RepliconTick>,
 	message: T,
 ) {
+	dbg!("Sending server event");
+	dbg!(&message);
+
     let message = DefaultOptions::new()
         .serialize(&message)
         .expect("server event should be serializable");	
@@ -231,8 +223,8 @@ pub fn send_server_event<T: Serialize>(
 
 /// An event that will be send to client(s).
 #[derive(Clone, Copy, Debug, Event)]
-pub struct ToClients<T> {
-	pub mode: SendMode,
+pub struct ToClient<T> {
+	pub mode: Option<SendMode>,
 	pub event: T,
 }
 

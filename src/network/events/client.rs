@@ -20,6 +20,8 @@ impl ClientEventAppExt for App {
 			.resource_mut::<ChannelManager>()
 			.create_client_channel();
 
+		dbg!("client channel", std::any::type_name::<T>(), channel_id);
+
 		self.add_event::<T>()
 			.init_resource::<Events<FromClient<T>>>()
 			.insert_resource(EventChannel::<T>::new(channel_id));

@@ -2,7 +2,7 @@
 // cargo run --no-default-features --features server
 // CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-server-runner RUSTFLAGS=--cfg=web_sys_unstable_apis cargo run --target wasm32-unknown-unknown --no-default-features --features client
 
-use bevy::prelude::*;
+use bevy::{prelude::*, transform::commands};
 use bevy::transform::TransformSystem;
 use bevy_particle_systems::ParticleSystemPlugin;
 
@@ -16,8 +16,8 @@ mod player;
 // use network::*;
 
 use map::MapPlugin;
-use network::NetworkPlugin;
-use player::{Player, PlayerPlugin};
+use network::{NetworkPlugin, events::server::ServerEventAppExt};
+use player::{Player, PlayerPlugin, PhysicsBundle};
 // use replicon_components::RepliconComponentsPlugin;
 
 // use bevy_replicon::{
@@ -31,6 +31,7 @@ use player::{Player, PlayerPlugin};
 //     },
 // };
 use bevy_xpbd_2d::prelude::*;
+use serde::{Serialize, Deserialize};
 
 // #[derive(Parser, PartialEq, Resource)]
 // enum Cli {
@@ -77,6 +78,7 @@ fn main() {
 		// ))
 		// .insert_resource(Time::<Fixed>::from_seconds(1. / 60.))
 		// .add_systems(Update, server_event_system)
+		.add_server_event::<GameState>()
 		.run();
 }
 
@@ -134,3 +136,35 @@ fn update_camera(
 		);
 	}
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct PlayerState {
+	pub player: Player,
+	pub name: String,
+	pub transform: Transform,
+	pub physics: PhysicsBundle,
+	pub engine_on: bool,
+
+}
+
+#[derive(Serialize, Deserialize, Event, Clone, Debug)]
+pub struct GameState {
+	pub players: Vec<PlayerState>,
+	// bullets: Vec<PlayerState>,
+	// players: Vec<PlayerState>,
+}
+
+// fn send_current_gamestate(
+// 	commands: Commands,
+// 	players: Query<(&Player, Entity)>,
+// 	mut game_state_event: EventWriter<GameState>,
+// ) {
+// 	let mut game_state = GameState { players: Vec::new() };
+
+// 	for (player_tag, player_entity) in players.iter_mut() {
+// 		commands.entity(player_entity).log_components();
+// 		// commands.entity(player_entity).
+
+// 	}
+// 	// commands.get_entity(entity)
+// }

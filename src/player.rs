@@ -1,3 +1,5 @@
+use crate::network::{InternalConnectionEvent, EventClientConnected};
+use crate::network::events::server::ToClient;
 #[cfg(feature = "server")]
 use crate::network::helper::ServerSn;
 use bevy::{math::DVec2, prelude::*, render::mesh::VertexAttributeValues};
@@ -11,13 +13,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::{map::AffectedByGravity, network::helper::ClientSn};
 // use crate::{network::{ClientMsgEvent, NetworkChannel}, ClientMsg};
+use crate::network::helper::ClientId;
+
+#[derive(Resource, Default, Debug, Clone)]
+pub struct CurrentConnections {
+	pub players: Vec<ClientId>,
+}
 
 pub struct PlayerPlugin;
+
 
 impl Plugin for PlayerPlugin {
 	fn build(&self, app: &mut App) {
 		app
 			// .replicate::<Player>()
+			.init_resource::<CurrentConnections>()
 			.add_client_event::<Inputs>()
 			.add_systems(Update, input_system.run_if(resource_exists::<ClientSn>()))
 			// .add_systems(Startup, spawn_player)
@@ -26,13 +36,13 @@ impl Plugin for PlayerPlugin {
 		#[cfg(feature = "server")]
 		app.add_systems(
 			Update,
-			apply_player_movement.run_if(resource_exists::<ServerSn>()),
+			(apply_player_movement, handle_player_connections_system).run_if(resource_exists::<ServerSn>()),
 		);
 	}
 }
 
-#[derive(Bundle)]
-struct Physics {
+#[derive(Bundle, Debug, Serialize, Deserialize, Clone)]
+pub struct PhysicsBundle {
 	rbody: RigidBody,
 	pos: Position,
 	rot: Rotation,
@@ -49,7 +59,7 @@ struct Physics {
 	com: CenterOfMass,
 }
 
-impl Default for Physics {
+impl Default for PhysicsBundle {
 	fn default() -> Self {
 		Self {
 			rbody: RigidBody::Dynamic,
@@ -79,11 +89,27 @@ struct PlayerBundle {
 	collider: Collider,
 	locked_axes: LockedAxes,
 	gravity: GravityScale,
-	physics: Physics,
+	physics: PhysicsBundle,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 #[derive(Component, Clone, Copy)]
-pub struct Player;
+pub struct Player(ClientId);
+
+pub fn handle_player_connections_system(
+	// time_step: Res<Time>,
+	mut connection_event: EventReader<EventClientConnected>,
+	mut commands: Commands
+) {
+	for connection_event in connection_event.read() {
+		// dbg!(x);
+		commands.spawn((
+			Player(connection_event.0),
+			// Replication,
+			Transform::from_xyz(0., 0., 0.)
+		));
+	}
+}
 
 // impl Serialize for Player {
 //     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -163,7 +189,7 @@ fn player_init_system(
 			),
 			locked_axes: LockedAxes::new(),
 			gravity: GravityScale(0.),
-			physics: Physics {
+			physics: PhysicsBundle {
 				m: Mass(1.),
 				ext_f: ExternalForce::new(DVec2::ZERO).with_persistence(false),
 				..Default::default()
@@ -238,7 +264,7 @@ fn input_system(
 	// mut client: ResMut<ClientSn>,
 	keys: Res<Input<KeyCode>>,
 ) {
-	dbg!(&keys);
+	// dbg!(&keys);
 
 	move_events.send(Inputs {
 		click: None,
@@ -266,7 +292,7 @@ fn apply_player_movement(
 	const THRUST_PARTICLE_VELOCITY: f64 = 200.0;
 
 	for input in move_events.read() {
-		dbg!(&input);
+		// dbg!(&input);
 		let FromClient {
 			client_id: _client_id,
 			event: inputs,

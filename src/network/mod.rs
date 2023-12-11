@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use bevy::utils::{HashMap, HashSet};
 use bevy_simplenet::{AuthRequest, Authenticator};
 
+#[cfg(feature = "client")]
 use bevy_simplenet::{ClientConfig, ClientFactory};
 
 #[cfg(feature = "server")]
@@ -18,12 +19,19 @@ use crate::network::helper::NetworkChannel;
 
 use self::channels_config::ChannelManager;
 use self::events::server::ServerEventAppExt;
-use self::helper::{ClientSet, ClientSn, ConnectMsg, ClientId};
+use self::helper::ClientId;
+#[cfg(feature = "client")]
+use self::helper::{ClientSet, ClientSn, ConnectMsg};
 
 #[cfg(feature = "server")]
 use self::helper::{ServerSet, ServerSn};
 
 // use self::tick::{LastRepliconTick, MinRepliconTick, RepliconTick};
+
+#[derive(Event, Debug, Clone, Serialize, Deserialize)]
+pub struct EventClientConnected(pub ClientId);
+#[derive(Event, Debug, Clone, Serialize, Deserialize)]
+pub struct EventClientDisconnected(pub ClientId);
 
 pub struct NetworkPlugin;
 
@@ -60,7 +68,9 @@ impl Plugin for NetworkPlugin {
 				Self::server_reciving_messages_bucketer
 					.in_set(ServerSet::PreRecieve)
 					.run_if(resource_exists::<ServerSn>()),
-			);
+			)
+			.add_event::<EventClientConnected>()
+			.add_event::<EventClientDisconnected>();
 	}
 }
 
@@ -116,8 +126,12 @@ impl NetworkPlugin {
 	}
 
 	#[cfg(feature = "server")]
-	pub fn server_reciving_messages_bucketer(mut server: ResMut<ServerSn>) {
-        use crate::network::events::server::send_server_event;
+	pub fn server_reciving_messages_bucketer(
+		mut server: ResMut<ServerSn>, 
+		mut client_connected_event: EventWriter<EventClientConnected>,
+		mut client_disconnected_event: EventWriter<EventClientDisconnected>,
+	) {
+        use crate::network::{events::server::send_server_event, channels_config::CONNECTION_EVENT_CHANNEL_ID};
 
 		while let Some((client_id, message)) = server.simplenet.next() {
 			match message {
@@ -126,18 +140,20 @@ impl NetworkPlugin {
 					match report {
 						ServerReport::Connected(_env, _connection_msg) => {
 							assert!(server.client_connections.insert(client_id));
+							client_connected_event.send(EventClientConnected(client_id));
                             send_server_event::<InternalConnectionEvent>(
                                 &mut server, 
-                                0, 
+                                CONNECTION_EVENT_CHANNEL_ID, 
                                 events::server::SendMode::Broadcast, 
                                 InternalConnectionEvent::Connected(client_id)
                             )
 						}
 						ServerReport::Disconnected => {
 							assert!(server.client_connections.remove(&client_id));
+							client_disconnected_event.send(EventClientDisconnected(client_id));
                             send_server_event::<InternalConnectionEvent>(
                                 &mut server, 
-                                0, 
+                                CONNECTION_EVENT_CHANNEL_ID, 
                                 events::server::SendMode::Broadcast, 
                                 InternalConnectionEvent::Disconnected(client_id)
                             )

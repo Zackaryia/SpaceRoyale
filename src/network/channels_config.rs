@@ -1,13 +1,17 @@
 use bevy::prelude::*;
 
-pub struct ServerChannelConfig {
+use super::helper::ChannelId;
+
+// pub struct ServerChannelConfig {
     
-}
+// }
 
 /// ID of the server replication channel.
 ///
 /// See also [`NetworkChannels`].
 // pub const REPLICATION_CHANNEL_ID: u8 = 0;
+
+pub const CONNECTION_EVENT_CHANNEL_ID: ChannelId = 2;
 
 /// A resource to configure and setup channels for [`ConnectionConfig`](bevy_renet::renet::ConnectionConfig)
 #[derive(Clone, Resource)]
@@ -29,8 +33,8 @@ pub struct ChannelManager {
 impl Default for ChannelManager {
 	fn default() -> Self {
 		Self {
-			server: 0,
-			client: 0,
+			server: 1,
+			client: 1,
 			// default_max_bytes: 5 * 1024 * 1024, // Value from `DefaultChannel::config()`.
 		}
 	}
